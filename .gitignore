@@ -8,3 +8,6 @@ Thumbs.db
 
 # 依赖（后端部署时由 composer 安装）
 backend/vendor/
+
+# 云端部署副本（由 index.html/css/js 生成，不纳入仓库）
+deploy/

@@ -206,6 +206,17 @@ body {
 /* ---------- 测验 ---------- */
 .quiz-q { font-size: 26px; font-weight: 800; text-align: center; margin: 6px 0 4px; }
 .quiz-sub { text-align: center; color: var(--text-soft); font-size: 13px; margin-bottom: 18px; }
+.quiz-q.listen { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0 2px; }
+.speak-big {
+  width: 76px; height: 76px; border-radius: 50%; border: none; cursor: pointer;
+  font-size: 34px; background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+  color: #fff; box-shadow: var(--shadow); display: grid; place-items: center;
+  animation: pulse 2.4s ease-in-out infinite; transition: transform .15s;
+}
+.speak-big:active { transform: scale(.92); }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,58,237,.45); } 50% { box-shadow: 0 0 0 14px rgba(124,58,237,0); } }
+.hidden-term { font-size: 18px; font-weight: 800; color: var(--primary-deep); margin-top: 4px; }
+.hidden-term small { color: var(--text-soft); font-weight: 600; font-size: 13px; }
 .options { display: grid; gap: 11px; }
 .option {
   text-align: left; padding: 15px 16px; border-radius: var(--radius-sm);

@@ -252,10 +252,19 @@
     const s = App.study, w = s.list[s.quizIdx];
     const opts = buildQuizOptions(w);
     s._opts = opts;
+    const mode = Math.random() < 0.5 ? 'listen' : 'choice';
+    s._mode = mode;
+    const qHtml = mode === 'listen'
+      ? `<div class="quiz-q listen">
+           <button class="speak-big" data-act="speak">🔊</button>
+           <div class="quiz-sub">点击听发音，选出正确中文释义</div>
+           <div class="hidden-term" id="hiddenTerm" style="display:none">${w.term} <small>${w.phonetic}</small></div>
+         </div>`
+      : `<div class="quiz-q">${w.emoji} ${w.term}</div>
+         <div class="quiz-sub">${w.phonetic} · 选出正确中文释义</div>`;
     return `<div class="study-wrap">
-      <span class="progress-pill">🧠 测验 · ${s.quizIdx + 1} / ${s.list.length}</span>
-      <div class="quiz-q">${w.emoji} ${w.term}</div>
-      <div class="quiz-sub">${w.phonetic} · 选出正确中文释义</div>
+      <span class="progress-pill">🧠 测验 · ${s.quizIdx + 1} / ${s.list.length}${mode === 'listen' ? ' · 🔊 听音' : ''}</span>
+      ${qHtml}
       <div class="options">
         ${opts.map((o, i) => `<button class="option" data-i="${i}">${o.t}</button>`).join('')}
       </div>
@@ -266,6 +275,12 @@
 
   function bindQuiz() {
     const s = App.study;
+    // 听音模式：自动播放发音 + 绑定重播按钮
+    if (s._mode === 'listen') {
+      const sb = $('[data-act="speak"]');
+      if (sb) sb.onclick = () => speak(s.list[s.quizIdx].term);
+      speak(s.list[s.quizIdx].term);
+    }
     $$('.option').forEach(btn => btn.onclick = () => {
       const i = +btn.dataset.i, opt = s._opts[i];
       $$('.option').forEach(b => b.classList.add('dim'));
@@ -275,6 +290,8 @@
       const fb = $('#fb');
       fb.textContent = opt.ok ? '✅ 答对啦！' : '❌ 正确答案：' + s._opts.find(o => o.ok).t;
       fb.className = 'feedback ' + (opt.ok ? 'ok' : 'no');
+      // 听音模式下答完揭示单词与音标
+      if (s._mode === 'listen') { const ht = $('#hiddenTerm'); if (ht) ht.style.display = 'block'; }
       $$('.option').forEach(b => b.onclick = null);
       $('#nextBtn').style.display = 'block';
       // 记录测验正确/错误用于 SM-2
