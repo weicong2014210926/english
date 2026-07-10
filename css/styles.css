@@ -50,7 +50,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-html, body { height: 100%; }
+html { height: 100%; overflow-x: hidden; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -64,7 +64,6 @@ body {
   display: flex;
   justify-content: center;
   transition: color .4s ease;
-  overflow-x: hidden;
 }
 
 #app {
@@ -322,6 +321,8 @@ body {
 .empty .e-emoji { font-size: 54px; display: block; margin-bottom: 12px; opacity: .7; }
 
 @media (min-width: 520px) {
-  #app { margin: 18px 0; min-height: auto; border-radius: 30px; box-shadow: var(--shadow-lg); overflow: hidden; border: 1px solid var(--glass-border); }
-  .tabbar { border-radius: 0 0 30px 30px; }
+  body { align-items: flex-start; }
+  #app { margin: 18px auto; min-height: auto; border-radius: 30px; box-shadow: var(--shadow-lg); overflow: visible; border: 1px solid var(--glass-border); }
+  #app .topbar { border-top-left-radius: 30px; border-top-right-radius: 30px; }
+  #app .tabbar { border-radius: 0 0 30px 30px; }
 }
