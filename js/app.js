@@ -17,7 +17,7 @@
   const defaultStats = { points: 0, weeklyPoints: 0, streak: 0, bestStreak: 0, lastCheckIn: '', learnedCount: 0, quizCorrect: 0, quizWrong: 0, levelDone: {} };
   let stats = Object.assign({}, defaultStats, load(KEY.stat, {}));
   let prog = load(KEY.prog, {});           // { term: {easeFactor,interval,repetitions,dueDate,learned,correct,wrong} }
-  let settings = Object.assign({ theme: 'system' }, load(KEY.set, {}));
+  let settings = Object.assign({ theme: 'system', placementDone: false, placedLevel: null }, load(KEY.set, {}));
   let ach = load(KEY.ach, {});
 
   /* ---------------- 成就定义 ---------------- */
@@ -108,6 +108,96 @@
     go('learn');
   }
 
+  /* ---------------- 分级测评（自适应定档 F3） ---------------- */
+  const LEVELS = ['L1', 'L2', 'L3'];
+  function startPlacement() {
+    App.place = { idx: 0, total: 12, correct: 0, band: 1, used: new Set(), result: null };
+    go('place');
+  }
+  function placePickWord() {
+    const p = App.place;
+    let pool = byLevel(LEVELS[p.band - 1]).filter(w => !p.used.has(w.term));
+    if (!pool.length) pool = WORD_BANK.filter(w => !p.used.has(w.term));
+    if (!pool.length) pool = WORD_BANK;
+    const w = pool[Math.floor(Math.random() * pool.length)];
+    p.used.add(w.term);
+    return w;
+  }
+  function viewPlace() {
+    const p = App.place;
+    if (p.result) return viewPlaceResult();
+    const w = placePickWord();
+    p._w = w;
+    const opts = buildQuizOptions(w);
+    p._opts = opts;
+    return `<div class="study-wrap">
+      <span class="progress-pill">🎯 分级测评 · ${p.idx + 1} / ${p.total} · 难度 L${p.band}</span>
+      <div class="quiz-q">${w.emoji} ${w.term}</div>
+      <div class="quiz-sub">${w.phonetic} · 选出正确中文释义（难度随答题自适应升降）</div>
+      <div class="options">
+        ${opts.map((o, i) => `<button class="option" data-i="${i}">${o.t}</button>`).join('')}
+      </div>
+      <div class="feedback" id="fb"></div>
+    </div>`;
+  }
+  function bindPlace() {
+    const p = App.place;
+    $$('.option').forEach(btn => btn.onclick = () => {
+      const i = +btn.dataset.i, opt = p._opts[i];
+      $$('.option').forEach(b => b.classList.add('dim'));
+      btn.classList.remove('dim');
+      if (opt.ok) { btn.classList.add('correct'); p.correct++; }
+      else { btn.classList.add('wrong'); $$('.option').forEach(b => { if (p._opts[+b.dataset.i].ok) b.classList.remove('dim'), b.classList.add('correct'); }); }
+      const fb = $('#fb');
+      fb.textContent = opt.ok ? '✅ 答对了！难度调高 🔼' : '❌ 答错了，难度调低 🔽';
+      fb.className = 'feedback ' + (opt.ok ? 'ok' : 'no');
+      $$('.option').forEach(b => b.onclick = null);
+      p.band = opt.ok ? Math.min(3, p.band + 1) : Math.max(1, p.band - 1);
+      p.idx++;
+      setTimeout(() => { if (p.idx >= p.total) finishPlacement(); else render(); }, 650);
+    });
+  }
+  function finishPlacement() {
+    const p = App.place;
+    const acc = p.correct / p.total;
+    let level;
+    if (acc <= 0.25) level = 'L1';
+    else if (acc >= 0.85 && p.band === 3) level = 'L3';
+    else {
+      let b = p.band;
+      if (b === 3 && acc < 0.5) b = 2; // 终点虽在高带但正确率不足，降一档
+      level = LEVELS[b - 1];
+    }
+    p.result = { level, correct: p.correct, total: p.total, band: p.band, acc };
+    settings.placementDone = true; settings.placedLevel = level; save(KEY.set, settings);
+    render();
+  }
+  function viewPlaceResult() {
+    const r = App.place.result;
+    const lvName = { L1: 'L1 基础', L2: 'L2 进阶', L3: 'L3 高阶' }[r.level];
+    const emoji = r.level === 'L3' ? '🚀' : r.level === 'L2' ? '🌿' : '🌱';
+    return `<div class="study-wrap"><div class="result-card word-card">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title">测评完成！</div>
+      <div class="result-sub">推荐你从 <b>${lvName}</b> 开始</div>
+      <div class="result-stats">
+        <div><span>${r.correct}/${r.total}</span><small>答对</small></div>
+        <div><span>${Math.round(r.acc * 100)}%</span><small>正确率</small></div>
+        <div><span>L${r.band}</span><small>终点难度</small></div>
+      </div>
+      <div class="btn-row"><button class="btn" data-act="start-placed">▶ 从 ${lvName} 开始</button></div>
+      <div class="btn-row">
+        <button class="btn ghost" data-act="re-test">🔁 重新测评</button>
+        <button class="btn ghost" data-act="home">🏠 返回首页</button>
+      </div>
+    </div></div>`;
+  }
+  function bindPlaceResult() {
+    $('[data-act="start-placed"]').onclick = () => startSession(settings.placedLevel, false);
+    $('[data-act="re-test"]').onclick = () => startPlacement();
+    $('[data-act="home"]').onclick = () => go('home');
+  }
+
   /* ---------------- 渲染框架 ---------------- */
   const App = { view: 'home', study: null };
   const app = () => $('#app');
@@ -140,6 +230,7 @@
     else if (App.view === 'lb') html = viewLeaderboard();
     else if (App.view === 'ach') html = viewAchievements();
     else if (App.view === 'vocab') html = viewVocab();
+    else if (App.view === 'place') html = (App.place && App.place.result) ? viewPlaceResult() : viewPlace();
 
     app().innerHTML = topbar() + `<div class="view">${html}</div>` + tabBar();
     bindCommon();
@@ -149,6 +240,7 @@
     else if (App.view === 'result') bindResult();
     else if (App.view === 'review') bindReviewList();
     else if (App.view === 'vocab') bindVocab();
+    else if (App.view === 'place') { if (App.place && App.place.result) bindPlaceResult(); else bindPlace(); }
   }
 
   function go(v) { App.view = v; render(); window.scrollTo(0, 0); }
@@ -169,12 +261,17 @@
     const levelCard = (lv, emoji, name, desc) => {
       const total = levelTotal(lv), learned = levelLearned(lv), pct = total ? Math.round(learned / total * 100) : 0;
       const done = learned >= total && total > 0;
+      const rec = (settings.placementDone && settings.placedLevel === lv) ? ' · ⭐推荐' : '';
       return `<div class="level-card" data-level="${lv}">
         <div class="emoji">${emoji}</div>
-        <div class="meta"><h3>${name} ${done ? '🎉' : ''}</h3><p>${desc} · 已学 ${learned}/${total}</p>
+        <div class="meta"><h3>${name} ${done ? '🎉' : ''}</h3><p>${desc}${rec} · 已学 ${learned}/${total}</p>
           <div class="progress"><i style="width:${pct}%"></i></div></div>
         <div class="go">›</div></div>`;
     };
+
+    const placementCard = !settings.placementDone
+      ? `<div class="level-card" data-act="place" style="border-color:var(--glass-border-strong);background:linear-gradient(135deg, rgba(124,58,237,.14), rgba(245,158,11,.12))"><div class="emoji">🎯</div><div class="meta"><h3>分级测评（推荐先做）</h3><p>12 题自适应测试，为你智能定档 L1–L3</p></div><div class="go">›</div></div>`
+      : `<div class="level-card" data-act="place" style="border-color:var(--glass-border-strong)"><div class="emoji">🎯</div><div class="meta"><h3>重新分级测评</h3><p>上次推荐：从 ${settings.placedLevel} 开始 · 想换档可重测</p></div><div class="go">›</div></div>`;
 
     return `
       ${checkin}
@@ -183,6 +280,7 @@
         <div class="stat-card"><div class="num">${stats.streak}</div><div class="lbl">连续签到</div></div>
         <div class="stat-card"><div class="num">${stats.learnedCount}</div><div class="lbl">已学词</div></div>
       </div>
+      ${placementCard}
       <div class="section-title"><span class="bar"></span>开始学习</div>
       ${levelCard('L1', '🌱', 'L1 基础', '生活高频词')}
       ${levelCard('L2', '🌿', 'L2 进阶', '场景进阶词')}
@@ -196,6 +294,7 @@
     $$('[data-level]').forEach(c => c.onclick = () => startSession(c.dataset.level, false));
     const rv = $('[data-review]'); if (rv) rv.onclick = () => startSession(null, true);
     const vb = $('[data-vocab]'); if (vb) vb.onclick = () => go('vocab');
+    const pc = $('[data-act="place"]'); if (pc) pc.onclick = startPlacement;
     const ci = $('[data-act="checkin"]');
     if (ci) ci.onclick = () => {
       if (stats.lastCheckIn === todayStr()) return;
