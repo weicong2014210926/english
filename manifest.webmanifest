@@ -1,0 +1,19 @@
+{
+  "name": "趣学 · 英语趣学",
+  "short_name": "趣学英语",
+  "description": "图像故事联想 + 闯关积分，有趣又好用的英语学习 H5",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1020",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
