@@ -31,6 +31,7 @@
     { id: 'l2', ic: '🥈', nm: '进阶', ds: '学完 L2' },
     { id: 'l3', ic: '🥇', nm: '高阶', ds: '学完 L3' },
     { id: 'review', ic: '🔄', nm: '温故', ds: '完成一次复习' },
+    { id: 'collector', ic: '⭐', nm: '收藏家', ds: '收藏 10 个生词' },
   ];
 
   /* ---------------- 工具 ---------------- */
@@ -68,6 +69,8 @@
     if (stats.streak >= 3) unlock('streak3');
     if (stats.streak >= 7) unlock('streak7');
     ['L1', 'L2', 'L3'].forEach(l => { if (stats.levelDone[l]) unlock(l.toLowerCase()); });
+    const favCount = Object.values(prog).filter(p => p && p.fav).length;
+    if (favCount >= 10) unlock('collector');
   }
 
   /* ---------------- 词库辅助 ---------------- */
@@ -89,6 +92,22 @@
     go('learn');
   }
 
+  // 生词本：用户收藏的词 + 错多于对的词
+  function vocabWords() {
+    return WORD_BANK.filter(w => {
+      const p = prog[w.term];
+      return p && (p.fav || (p.wrong > p.correct));
+    });
+  }
+  function vocabCount() { return vocabWords().length; }
+
+  // 用自定义词列表开一组（生词巩固）
+  function startCustom(list, title) {
+    if (!list.length) { toast('还没有生词哦 📭'); return; }
+    App.study = { level: title || 'vocab', isReview: true, list: list.slice(0, 10), idx: 0, quiz: [] };
+    go('learn');
+  }
+
   /* ---------------- 渲染框架 ---------------- */
   const App = { view: 'home', study: null };
   const app = () => $('#app');
@@ -96,6 +115,7 @@
   function tabBar() {
     const items = [
       { id: 'home', ti: '🏠', tx: '首页' },
+      { id: 'vocab', ti: '📕', tx: '生词' },
       { id: 'review', ti: '🔄', tx: '复习' },
       { id: 'lb', ti: '🏆', tx: '排行' },
       { id: 'ach', ti: '⭐', tx: '成就' },
@@ -119,6 +139,7 @@
     else if (App.view === 'review') html = viewReviewList();
     else if (App.view === 'lb') html = viewLeaderboard();
     else if (App.view === 'ach') html = viewAchievements();
+    else if (App.view === 'vocab') html = viewVocab();
 
     app().innerHTML = topbar() + `<div class="view">${html}</div>` + tabBar();
     bindCommon();
@@ -127,6 +148,7 @@
     else if (App.view === 'quiz') bindQuiz();
     else if (App.view === 'result') bindResult();
     else if (App.view === 'review') bindReviewList();
+    else if (App.view === 'vocab') bindVocab();
   }
 
   function go(v) { App.view = v; render(); window.scrollTo(0, 0); }
@@ -165,6 +187,7 @@
       ${levelCard('L1', '🌱', 'L1 基础', '生活高频词')}
       ${levelCard('L2', '🌿', 'L2 进阶', '场景进阶词')}
       ${levelCard('L3', '🌳', 'L3 高阶', '考试核心词')}
+      ${vocabCount() > 0 ? `<div class="level-card" data-vocab="1" style="border-color:var(--glass-border-strong)"><div class="emoji">📕</div><div class="meta"><h3>我的生词本</h3><p>已收藏 / 易错 ${vocabCount()} 个词，常回来看看</p></div><div class="go">›</div></div>` : ''}
       ${due > 0 ? `<div class="level-card" data-review="1" style="border-color:var(--glass-border-strong)"><div class="emoji">🔄</div><div class="meta"><h3>复习待巩固词</h3><p>有 ${due} 个词到期，温故知新</p></div><div class="go">›</div></div>` : ''}
     `;
   }
@@ -172,6 +195,7 @@
   function bindHome() {
     $$('[data-level]').forEach(c => c.onclick = () => startSession(c.dataset.level, false));
     const rv = $('[data-review]'); if (rv) rv.onclick = () => startSession(null, true);
+    const vb = $('[data-vocab]'); if (vb) vb.onclick = () => go('vocab');
     const ci = $('[data-act="checkin"]');
     if (ci) ci.onclick = () => {
       if (stats.lastCheckIn === todayStr()) return;
@@ -210,20 +234,37 @@
         <button class="btn ghost" data-q="3">🤔 模糊</button>
         <button class="btn success" data-q="5">😎 记住了</button>
       </div>
+      <div class="btn-row" id="favRow" style="display:none;justify-content:center">
+        <button class="btn ghost" data-act="fav">⭐ 收藏生词</button>
+      </div>
     </div>`;
   }
 
   function bindLearn() {
     const card = $('#wcard');
-    $('[data-act="speak"]').onclick = () => speak(App.study.list[App.study.idx].term);
+    const term = App.study.list[App.study.idx].term;
+    $('[data-act="speak"]').onclick = () => speak(term);
     $('[data-act="reveal"]').onclick = () => {
       card.classList.remove('hidden-state'); card.classList.add('reveal-state');
       $('[data-act="reveal"]').style.display = 'none';
       $('#assess').style.display = 'flex';
+      const fr = $('#favRow');
+      if (fr) {
+        fr.style.display = 'flex';
+        const fb = $('[data-act="fav"]');
+        if (fb) fb.textContent = (prog[term] && prog[term].fav) ? '⭐ 已收藏' : '⭐ 收藏生词';
+      }
+    };
+    const favBtn = $('[data-act="fav"]');
+    if (favBtn) favBtn.onclick = () => {
+      const p = prog[term] || (prog[term] = { learned: false, correct: 0, wrong: 0, easeFactor: 2.5, interval: 0, repetitions: 0, dueDate: todayStr(), fav: false });
+      p.fav = !p.fav; save(KEY.prog, prog);
+      favBtn.textContent = p.fav ? '⭐ 已收藏' : '⭐ 收藏生词';
+      toast(p.fav ? '已加入生词本 ⭐' : '已取消收藏');
     };
     $$('#assess [data-q]').forEach(b => b.onclick = () => {
       const q = +b.dataset.q;
-      App.study.quiz.push({ term: App.study.list[App.study.idx].term, quality: q });
+      App.study.quiz.push({ term: term, quality: q });
       nextLearn();
     });
   }
@@ -366,6 +407,28 @@
       <div class="level-card" data-review="1"><div class="emoji">🔄</div><div class="meta"><h3>开始复习</h3><p>温故知新，巩固记忆曲线</p></div><div class="go">›</div></div>`;
   }
   function bindReviewList() { const rv = $('[data-review]'); if (rv) rv.onclick = () => startSession(null, true); }
+
+  /* ---------------- 生词本 ---------------- */
+  function viewVocab() {
+    const list = vocabWords();
+    if (!list.length) return `<div class="empty"><span class="e-emoji">📭</span>生词本是空的<br>学习时点 ⭐ 收藏，或答错的词会自动进来</div>`;
+    return `<div class="section-title"><span class="bar"></span>我的生词本（${list.length}）</div>
+      <p style="color:var(--text-soft);font-size:12px;margin:0 4px 12px">点单词可听发音，点「开始巩固」集中复习 💪</p>
+      <div class="vocab-list">
+        ${list.map(w => `<div class="vocab-item" data-term="${w.term}">
+          <span class="v-emoji">${w.emoji}</span>
+          <span class="v-term">${w.term}</span>
+          <span class="v-def">${w.def}</span>
+          ${prog[w.term] && prog[w.term].fav ? '<span class="v-fav">⭐</span>' : ''}
+          <button class="v-spk" data-spk="${w.term}">🔊</button>
+        </div>`).join('')}
+      </div>
+      <button class="btn block" data-act="vocab-review" style="margin-top:14px">🔁 开始巩固这 ${list.length} 个词</button>`;
+  }
+  function bindVocab() {
+    $$('[data-spk]').forEach(b => b.onclick = (e) => { e.stopPropagation(); speak(b.dataset.spk); });
+    const rv = $('[data-act="vocab-review"]'); if (rv) rv.onclick = () => startCustom(vocabWords(), '生词巩固');
+  }
 
   /* ---------------- 排行榜（本地模拟，后端接实时快照） ---------------- */
   function viewLeaderboard() {

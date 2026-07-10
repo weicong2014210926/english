@@ -307,6 +307,17 @@ body {
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ---------- 生词本 ---------- */
+.vocab-list { display: flex; flex-direction: column; gap: 9px; }
+.vocab-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--glass-border); backdrop-filter: blur(10px); transition: transform .15s; }
+.vocab-item:active { transform: scale(.98); }
+.v-emoji { font-size: 22px; width: 26px; text-align: center; }
+.v-term { font-weight: 800; font-size: 15px; min-width: 88px; }
+.v-def { flex: 1; color: var(--text-soft); font-size: 13px; }
+.v-fav { font-size: 13px; }
+.v-spk { margin-left: auto; border: 1px solid var(--glass-border); background: var(--surface-2); border-radius: 10px; padding: 6px 9px; font-size: 14px; cursor: pointer; }
+.v-spk:active { transform: scale(.9); }
+
 .empty { text-align: center; color: var(--text-faint); padding: 50px 20px; font-size: 14px; }
 .empty .e-emoji { font-size: 54px; display: block; margin-bottom: 12px; opacity: .7; }
 
